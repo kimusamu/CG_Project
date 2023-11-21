@@ -102,7 +102,7 @@ int main(int argc, char** argv)
 }
 void make_vertexShaders()
 {
-    vertexSource = filetobuf("vertex.vert");
+    vertexSource = filetobuf("vertex.glsl");
     //--- 버텍스 세이더 객체 만들기
     vertexShader = glCreateShader(GL_VERTEX_SHADER);
     //--- 세이더 코드를 세이더 객체에 넣기
@@ -123,7 +123,7 @@ void make_vertexShaders()
 
 void make_fragmentShaders()
 {
-    fragmentSource = filetobuf("fragment.frag");
+    fragmentSource = filetobuf("fragment.glsl");
     //--- 프래그먼트 세이더 객체 만들기
     fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
     //--- 세이더 코드를 세이더 객체에 넣기
