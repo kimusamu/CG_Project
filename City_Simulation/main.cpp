@@ -11,6 +11,7 @@
 #include <gl/freeglut_ext.h>
 #include <gl/glm/glm.hpp>
 #include <gl/glm/ext.hpp>
+#include <gl/glm/gtc/type_ptr.hpp>
 #include <gl/glm/gtc/matrix_transform.hpp>
 #include "objRead.h"
 
@@ -28,15 +29,21 @@ float cameraUp_x = 0.0f, cameraUp_y = 1.0f, cameraUp_z = 0.0f;
 float lightPos_x = 0.0f, lightPos_y = 10.0f, lightPos_z = 0.0f;
 
 float build_x = 0.0f, build_y = 0.0f, build_z = 0.0f;
+float point_x = 0.0f, point_z = 0.0f;
+float angle_x = 0.0f, angle_y = 0.0f, angle_xs = 0.0f, angle_ys = 0.0f;
 
 bool change_r = false, change_g = false, change_b = false, change_w = true;
 bool animation_y = false;
+bool move_x = false, move_z = false;
+
+int house_count = 0, building_count = 0, top_count = 0;
 
 typedef struct Rect {
     GLfloat tri_shapes[8][3];
     GLfloat tri_normals[8][3];
     GLfloat tri_colors[8][3];
 };
+
 Rect place;
 
 typedef struct Building_Place {
@@ -47,11 +54,21 @@ typedef struct Building_Place {
 Building_Place build_place;
 
 typedef struct Tree_Place {
-    GLfloat x[8] = { -7, -5, -3, -1, 1, 3, 5, 7};
-    GLfloat y[8] = { -7, -5, -3, -1, 1, 3, 5, 7};
+    GLfloat x[8] = { -7, -5, -3, -1, 1, 3, 5, 7 };
+    GLfloat y[8] = { -7, -5, -3, -1, 1, 3, 5, 7 };
 };
 
 Tree_Place tree_place;
+
+typedef struct Builds {
+    GLfloat x[100] = {};
+    GLfloat y[100] = {};
+    bool build[100] = {};
+};
+
+Builds house;
+Builds building;
+Builds top;
 
 GLuint place_vao, place_vbo[3];
 GLuint place_ebo;
@@ -87,10 +104,21 @@ GLint Tree = Tree_Load.loadObj("Tree.obj");
 
 GLuint VAO_tree, VBO_NORMAL_tree, VBO_VERTEX_tree;
 
-Objectload Build_Load;
-GLint Build = Build_Load.loadObj("house1.obj");
+Objectload House_Load;
+GLint House = House_Load.loadObj("House1.obj");
+
+GLuint VAO_house, VBO_NORMAL_house, VBO_VERTEX_house;
+
+Objectload Building_Load;
+GLint Building = Building_Load.loadObj("building1.obj");
 
 GLuint VAO_build, VBO_NORMAL_build, VBO_VERTEX_build;
+
+Objectload Top_Load;
+GLint Top = Top_Load.loadObj("top1.obj");
+
+GLuint VAO_top, VBO_NORMAL_top, VBO_VERTEX_top;
+
 
 void make_vertexShaders();
 void make_fragmentShaders();
@@ -115,6 +143,7 @@ void make_tree();
 void make_place();
 void make_build();
 void move_place();
+void make_point();
 
 void light();
 
@@ -137,6 +166,20 @@ void main(int argc, char** argv) {
 
     else {
         cout << "GLEW Initialized\n";
+    }
+
+    for (int i = 0; i < 100; i++) {
+        house.build[i] = false;
+        house.x[i] = 0.0f;
+        house.y[i] = 0.0f;
+
+        building.build[i] = false;
+        building.x[i] = 0.0f;
+        building.y[i] = 0.0f;
+
+        top.build[i] = false;
+        top.x[i] = 0.0f;
+        top.y[i] = 0.0f;
     }
 
     make_vertexShaders();
@@ -301,6 +344,22 @@ void InitBuffer() {
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), 0);
     glEnableVertexAttribArray(1);
 
+    glGenVertexArrays(1, &VAO_house);
+    glGenBuffers(1, &VBO_NORMAL_house);
+    glGenBuffers(1, &VBO_VERTEX_house);
+
+    glBindVertexArray(VAO_house);
+
+    glBindBuffer(GL_ARRAY_BUFFER, VBO_VERTEX_house);
+    glBufferData(GL_ARRAY_BUFFER, House_Load.outvertex.size() * sizeof(glm::vec3), &House_Load.outvertex[0], GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), 0);
+    glEnableVertexAttribArray(0);
+
+    glBindBuffer(GL_ARRAY_BUFFER, VBO_NORMAL_house);
+    glBufferData(GL_ARRAY_BUFFER, House_Load.outnormal.size() * sizeof(glm::vec3), &House_Load.outnormal[0], GL_STATIC_DRAW);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), 0);
+    glEnableVertexAttribArray(1);
+
     glGenVertexArrays(1, &VAO_build);
     glGenBuffers(1, &VBO_NORMAL_build);
     glGenBuffers(1, &VBO_VERTEX_build);
@@ -308,12 +367,28 @@ void InitBuffer() {
     glBindVertexArray(VAO_build);
 
     glBindBuffer(GL_ARRAY_BUFFER, VBO_VERTEX_build);
-    glBufferData(GL_ARRAY_BUFFER, Build_Load.outvertex.size() * sizeof(glm::vec3), &Build_Load.outvertex[0], GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, Building_Load.outvertex.size() * sizeof(glm::vec3), &Building_Load.outvertex[0], GL_STATIC_DRAW);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), 0);
     glEnableVertexAttribArray(0);
 
     glBindBuffer(GL_ARRAY_BUFFER, VBO_NORMAL_build);
-    glBufferData(GL_ARRAY_BUFFER, Build_Load.outnormal.size() * sizeof(glm::vec3), &Build_Load.outnormal[0], GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, Building_Load.outnormal.size() * sizeof(glm::vec3), &Building_Load.outnormal[0], GL_STATIC_DRAW);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), 0);
+    glEnableVertexAttribArray(1);
+
+    glGenVertexArrays(1, &VAO_top);
+    glGenBuffers(1, &VBO_NORMAL_top);
+    glGenBuffers(1, &VBO_VERTEX_top);
+
+    glBindVertexArray(VAO_top);
+
+    glBindBuffer(GL_ARRAY_BUFFER, VBO_VERTEX_top);
+    glBufferData(GL_ARRAY_BUFFER, Top_Load.outvertex.size() * sizeof(glm::vec3), &Top_Load.outvertex[0], GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), 0);
+    glEnableVertexAttribArray(0);
+
+    glBindBuffer(GL_ARRAY_BUFFER, VBO_NORMAL_top);
+    glBufferData(GL_ARRAY_BUFFER, Top_Load.outnormal.size() * sizeof(glm::vec3), &Top_Load.outnormal[0], GL_STATIC_DRAW);
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), 0);
     glEnableVertexAttribArray(1);
 }
@@ -342,6 +417,7 @@ GLvoid drawScene() {
     move_place();
     make_tree();
     make_build();
+    make_point();
 
     glutSwapBuffers();
 }
@@ -387,6 +463,27 @@ GLvoid Keyboard(unsigned char key, int x, int y) {
         cameraPos_y += 0.1f;
         cameraDirection_y += 0.1f;
         break;
+
+    case '1':
+        house.build[house_count] = true;
+        house.x[house_count] = point_x;
+        house.y[house_count] = point_z;
+        house_count++;
+        break;
+
+    case '2':
+        building.build[building_count] = true;
+        building.x[building_count] = point_x;
+        building.y[building_count] = point_z;
+        building_count++;
+        break;
+
+    case '3':
+        top.build[top_count] = true;
+        top.x[top_count] = point_x;
+        top.y[top_count] = point_z;
+        top_count++;
+        break;
     }
 
     InitBuffer();
@@ -400,46 +497,74 @@ GLvoid Timer(int value) {
 }
 
 GLvoid ConvertWindowXYOpenGLXY(int x, int y, float* ox, float* oy) {
-    *ox = (float)(x - (float)windowWidth / 2.0) * (float)(1.0 / (float)(windowWidth / 2.0));
-    *oy = -(float)(y - (float)windowHeight / 2.0) * (float)(1.0 / (float)(windowHeight / 2.0));
+    *ox = (float)x / windowWidth * 2.0 - 1.0;
+    *oy = 1.0 - (float)y / windowHeight * 2.0;
 }
 
 GLvoid Mouse(int button, int state, int x, int y) {
     if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
-        float ox, oy;
-        ConvertWindowXYOpenGLXY(x, y, &ox, &oy);
-        cout << "Mouse Clicked at: (" << ox << ", " << oy << ")" << endl;
-        
-        glm::vec3 winCoord = glm::vec3(ox, oy, 0.0);
+        move_x = true;
+    }
 
-        glm::mat4 view = glm::mat4(1.0f);
-        glm::vec3 cameraPos = glm::vec3(cameraPos_x, cameraPos_y, cameraPos_z);
-        glm::vec3 cameraDirection = glm::vec3(cameraDirection_x, cameraDirection_y, cameraDirection_z);
-        glm::vec3 cameraUp = glm::vec3(cameraUp_x, cameraUp_y, cameraUp_z);
-        view = glm::lookAt(cameraPos, cameraDirection, cameraUp);
+    if (button == GLUT_RIGHT_BUTTON && state == GLUT_DOWN) {
+        move_z = true;
+    }
 
-        glm::mat4 projection = glm::mat4(1.0f);
-        projection = glm::perspective(glm::radians(45.0f), 1.0f, 0.1f, 50.0f);
-        projection = glm::translate(projection, glm::vec3(0.0, 0.0, -5.0));
-
-        glm::vec4 viewport = glm::vec4(0, 0, windowWidth, windowHeight);
-
-        glm::vec3 worldCoord = glm::unProject(winCoord, view, projection, viewport);
-
-        cout << "World Coordinates: (" << worldCoord.x << ", " << worldCoord.y << ", " << worldCoord.z << ")" << endl;
-
-        build_x = worldCoord.x;
-        build_z = worldCoord.z;
+    if ((button == GLUT_RIGHT_BUTTON || button == GLUT_LEFT_BUTTON) && state == GLUT_UP) {
+        move_x = false;
+        move_z = false;
     }
 }
 
 GLvoid MouseMove(int x, int y) {
     float ox, oy;
     ConvertWindowXYOpenGLXY(x, y, &ox, &oy);
-    glutPostRedisplay(); 
+    glutPostRedisplay();
 }
 
 GLvoid Motion(int x, int y) {
+    angle_x = x;
+    angle_y = y;
+
+    if (move_x) {
+        if (angle_x < angle_xs) {
+            point_x += 0.05f;
+
+            if (point_x >= 10.0f) {
+                point_x -= 0.05f;
+            }
+        }
+
+        else {
+            point_x -= 0.05f;
+
+            if (point_x <= -10.0f) {
+                point_x += 0.05f;
+            }
+        }
+    }
+
+    if (move_z) {
+        if (angle_y < angle_ys) {
+            point_z -= 0.05f;
+
+            if (point_z <= -10.0f) {
+                point_z += 0.05f;
+            }
+        }
+
+        else {
+            point_z += 0.05f;
+
+            if (point_z >= 10.0f) {
+                point_z -= 0.05f;
+            }
+        }
+    }
+
+    angle_xs = angle_x;
+    angle_ys = angle_y;
+
     drawScene();
 }
 
@@ -697,6 +822,82 @@ void move_place() {
 }
 
 void make_build() {
+    for (int i = 0; i < 100; i++) {
+        if (house.build[i] == true) {
+            unsigned int oColorLocation = glGetUniformLocation(shaderID, "objectColor");
+            glUniform3f(oColorLocation, 0.5f, 0.5f, 0.5f);
+
+            glm::mat4 Tx = glm::mat4(1.0f);
+            glm::mat4 Rz = glm::mat4(1.0f);
+            glm::mat4 TR = glm::mat4(1.0f);
+            glm::mat4 model = glm::mat4(1.0f);
+
+            Tx = glm::translate(Tx, glm::vec3(house.x[i], 0.0f, house.y[i]));
+            Rz = glm::rotate(Rz, glm::radians(0.0f), glm::vec3(0.0, 1.0, 0.0));
+            model = glm::scale(model, glm::vec3(0.01, 0.01, 0.01));
+
+            TR = Rz * Tx * model;
+
+            unsigned int modelLocation = glGetUniformLocation(shaderID, "modelTransform");
+            glUniformMatrix4fv(modelLocation, 1, GL_FALSE, glm::value_ptr(TR));
+            glBindVertexArray(VAO_house);
+
+            glEnable(GL_DEPTH_TEST);
+
+            glDrawArrays(GL_TRIANGLES, 0, House);
+        }
+
+        if (building.build[i] == true) {
+            unsigned int oColorLocation = glGetUniformLocation(shaderID, "objectColor");
+            glUniform3f(oColorLocation, 0.5f, 0.5f, 0.5f);
+
+            glm::mat4 Tx = glm::mat4(1.0f);
+            glm::mat4 Rz = glm::mat4(1.0f);
+            glm::mat4 TR = glm::mat4(1.0f);
+            glm::mat4 model = glm::mat4(1.0f);
+
+            Tx = glm::translate(Tx, glm::vec3(building.x[i], 0.0f, building.y[i]));
+            Rz = glm::rotate(Rz, glm::radians(0.0f), glm::vec3(0.0, 1.0, 0.0));
+            model = glm::scale(model, glm::vec3(0.01, 0.01, 0.01));
+
+            TR = Rz * Tx * model;
+
+            unsigned int modelLocation = glGetUniformLocation(shaderID, "modelTransform");
+            glUniformMatrix4fv(modelLocation, 1, GL_FALSE, glm::value_ptr(TR));
+            glBindVertexArray(VAO_build);
+
+            glEnable(GL_DEPTH_TEST);
+
+            glDrawArrays(GL_TRIANGLES, 0, Building);
+        }
+
+        if (top.build[i] == true) {
+            unsigned int oColorLocation = glGetUniformLocation(shaderID, "objectColor");
+            glUniform3f(oColorLocation, 0.5f, 0.5f, 0.5f);
+
+            glm::mat4 Tx = glm::mat4(1.0f);
+            glm::mat4 Rz = glm::mat4(1.0f);
+            glm::mat4 TR = glm::mat4(1.0f);
+            glm::mat4 model = glm::mat4(1.0f);
+
+            Tx = glm::translate(Tx, glm::vec3(top.x[i], 0.0f, top.y[i]));
+            Rz = glm::rotate(Rz, glm::radians(0.0f), glm::vec3(0.0, 1.0, 0.0));
+            model = glm::scale(model, glm::vec3(0.01, 0.01, 0.01));
+
+            TR = Rz * Tx * model;
+
+            unsigned int modelLocation = glGetUniformLocation(shaderID, "modelTransform");
+            glUniformMatrix4fv(modelLocation, 1, GL_FALSE, glm::value_ptr(TR));
+            glBindVertexArray(VAO_top);
+
+            glEnable(GL_DEPTH_TEST);
+
+            glDrawArrays(GL_TRIANGLES, 0, Top);
+        }
+    }
+}
+
+void make_point() {
     unsigned int oColorLocation = glGetUniformLocation(shaderID, "objectColor");
     glUniform3f(oColorLocation, 1.0f, 0.0f, 0.0f);
 
@@ -705,7 +906,7 @@ void make_build() {
     glm::mat4 TR = glm::mat4(1.0f);
     glm::mat4 model = glm::mat4(1.0f);
 
-    Tx = glm::translate(Tx, glm::vec3(build_x, build_y, build_z));
+    Tx = glm::translate(Tx, glm::vec3(point_x, 0.0f, point_z));
     Rz = glm::rotate(Rz, glm::radians(0.0f), glm::vec3(0.0, 1.0, 0.0));
     model = glm::scale(model, glm::vec3(0.1, 0.1, 0.1));
 
@@ -713,9 +914,9 @@ void make_build() {
 
     unsigned int modelLocation = glGetUniformLocation(shaderID, "modelTransform");
     glUniformMatrix4fv(modelLocation, 1, GL_FALSE, glm::value_ptr(TR));
-    glBindVertexArray(VAO_build);
+    glBindVertexArray(place_vao);
 
     glEnable(GL_DEPTH_TEST);
 
-    glDrawArrays(GL_TRIANGLES, 0, Build);
+    glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
 }
