@@ -159,7 +159,7 @@ void light();
 
 enum { xPos, yPos, zPos };
 enum { nxPos, nyPos, nzPos };
-enum { rColor, gColor, bColor };
+enum { rColor, gColor, bColor, aColor };
 
 void main(int argc, char** argv) {
     glutInit(&argc, argv);
@@ -426,11 +426,21 @@ GLvoid drawScene() {
     viewing();
     project();
 
+    glEnable(GL_DEPTH_TEST);
+
     make_sun();
     move_place();
     make_tree();
     make_build();
+
+    glDisable(GL_DEPTH_TEST);
+
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_ONE, GL_ONE);
+
     make_point();
+
+    glDisable(GL_BLEND);
 
     cout << "Cost: " << cost << endl;
 
@@ -488,32 +498,34 @@ GLvoid Keyboard(unsigned char key, int x, int y) {
         break;
 
     case 'b':
-        if (build_h) {
-            house.build[house_count] = true;
-            house.x[house_count] = point_x;
-            house.y[house_count] = point_z;
-            house.angle[house_count] = build_angle;
-            house_count++;
-        }
+        if (cost >= 0) {
+            if (build_h) {
+                house.build[house_count] = true;
+                house.x[house_count] = point_x;
+                house.y[house_count] = point_z;
+                house.angle[house_count] = build_angle;
+                house_count++;
+            }
 
-        if (build_b) {
-            building.build[building_count] = true;
-            building.x[building_count] = point_x;
-            building.y[building_count] = point_z;
-            building.angle[building_count] = build_angle;
-            building_count++;
-        }
+            if (build_b) {
+                building.build[building_count] = true;
+                building.x[building_count] = point_x;
+                building.y[building_count] = point_z;
+                building.angle[building_count] = build_angle;
+                building_count++;
+            }
 
-        if (build_t) {
-            top.build[top_count] = true;
-            top.x[top_count] = point_x;
-            top.y[top_count] = point_z;
-            top.angle[top_count] = build_angle;
-            top_count++;
-        }
+            if (build_t) {
+                top.build[top_count] = true;
+                top.x[top_count] = point_x;
+                top.y[top_count] = point_z;
+                top.angle[top_count] = build_angle;
+                top_count++;
+            }
 
-        cost -= 100;
-        build_angle = 0.0f;
+            cost -= 100;
+            build_angle = 0.0f;
+        }
         break;
 
     case '1':
@@ -698,8 +710,6 @@ void make_tree() {
                 glUniformMatrix4fv(modelLocation, 1, GL_FALSE, glm::value_ptr(TR));
                 glBindVertexArray(VAO_tree);
 
-                glEnable(GL_DEPTH_TEST);
-
                 glDrawArrays(GL_TRIANGLES, 0, Tree);
             }
 
@@ -718,8 +728,6 @@ void make_tree() {
                 unsigned int modelLocation = glGetUniformLocation(shaderID, "modelTransform");
                 glUniformMatrix4fv(modelLocation, 1, GL_FALSE, glm::value_ptr(TR));
                 glBindVertexArray(VAO_tree);
-
-                glEnable(GL_DEPTH_TEST);
 
                 glDrawArrays(GL_TRIANGLES, 0, Tree);
             }
@@ -745,8 +753,6 @@ void make_sun() {
     unsigned int modelLocation = glGetUniformLocation(shaderID, "modelTransform");
     glUniformMatrix4fv(modelLocation, 1, GL_FALSE, glm::value_ptr(TR));
     glBindVertexArray(VAO_sphere);
-
-    glEnable(GL_DEPTH_TEST);
 
     glDrawArrays(GL_TRIANGLES, 0, Sphere);
 }
@@ -858,8 +864,6 @@ void move_place() {
             glUniformMatrix4fv(modelLocation, 1, GL_FALSE, glm::value_ptr(TR));
             glBindVertexArray(place_vao);
 
-            glEnable(GL_DEPTH_TEST);
-
             glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
         }
     }
@@ -881,8 +885,6 @@ void move_place() {
     unsigned int modelLocation = glGetUniformLocation(shaderID, "modelTransform");
     glUniformMatrix4fv(modelLocation, 1, GL_FALSE, glm::value_ptr(TR));
     glBindVertexArray(place_vao);
-
-    glEnable(GL_DEPTH_TEST);
 
     glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
 }
@@ -908,8 +910,6 @@ void make_build() {
             glUniformMatrix4fv(modelLocation, 1, GL_FALSE, glm::value_ptr(TR));
             glBindVertexArray(VAO_house);
 
-            glEnable(GL_DEPTH_TEST);
-
             glDrawArrays(GL_TRIANGLES, 0, House);
         }
 
@@ -932,8 +932,6 @@ void make_build() {
             glUniformMatrix4fv(modelLocation, 1, GL_FALSE, glm::value_ptr(TR));
             glBindVertexArray(VAO_build);
 
-            glEnable(GL_DEPTH_TEST);
-
             glDrawArrays(GL_TRIANGLES, 0, Building);
         }
 
@@ -955,8 +953,6 @@ void make_build() {
             unsigned int modelLocation = glGetUniformLocation(shaderID, "modelTransform");
             glUniformMatrix4fv(modelLocation, 1, GL_FALSE, glm::value_ptr(TR));
             glBindVertexArray(VAO_top);
-
-            glEnable(GL_DEPTH_TEST);
 
             glDrawArrays(GL_TRIANGLES, 0, Top);
         }
@@ -983,8 +979,6 @@ void make_point() {
         glUniformMatrix4fv(modelLocation, 1, GL_FALSE, glm::value_ptr(TR));
         glBindVertexArray(VAO_house);
 
-        glEnable(GL_DEPTH_TEST);
-
         glDrawArrays(GL_TRIANGLES, 0, House);
     }
 
@@ -1006,8 +1000,6 @@ void make_point() {
         unsigned int modelLocation = glGetUniformLocation(shaderID, "modelTransform");
         glUniformMatrix4fv(modelLocation, 1, GL_FALSE, glm::value_ptr(TR));
         glBindVertexArray(VAO_build);
-
-        glEnable(GL_DEPTH_TEST);
 
         glDrawArrays(GL_TRIANGLES, 0, Building);
     }
@@ -1031,8 +1023,6 @@ void make_point() {
         glUniformMatrix4fv(modelLocation, 1, GL_FALSE, glm::value_ptr(TR));
         glBindVertexArray(VAO_top);
 
-        glEnable(GL_DEPTH_TEST);
-
         glDrawArrays(GL_TRIANGLES, 0, Top);
     }
 
@@ -1053,8 +1043,6 @@ void make_point() {
     unsigned int modelLocation = glGetUniformLocation(shaderID, "modelTransform");
     glUniformMatrix4fv(modelLocation, 1, GL_FALSE, glm::value_ptr(TR));
     glBindVertexArray(place_vao);
-
-    glEnable(GL_DEPTH_TEST);
 
     glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);*/
 }
