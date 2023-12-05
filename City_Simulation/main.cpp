@@ -6,6 +6,7 @@
 #include <string>
 #include <math.h>
 #include <Windows.h>
+#include <ctime>
 #include <gl/glew.h>
 #include <gl/freeglut.h>
 #include <gl/freeglut_ext.h>
@@ -22,7 +23,7 @@ int windowHeight = 800;
 
 int view_x = 0, view_y = 0;
 
-float cameraPos_x = 5.0f, cameraPos_y = 5.0f, cameraPos_z = 5.0f;
+float cameraPos_x = 0.0f, cameraPos_y = 5.0f, cameraPos_z = 5.0f;
 float cameraDirection_x = 0.0f, cameraDirection_y = 0.0f, cameraDirection_z = 0.0f;
 float cameraUp_x = 0.0f, cameraUp_y = 1.0f, cameraUp_z = 0.0f;
 
@@ -32,11 +33,19 @@ float build_x = 0.0f, build_y = 0.0f, build_z = 0.0f;
 float point_x = 0.0f, point_z = 0.0f;
 float angle_x = 0.0f, angle_y = 0.0f, angle_xs = 0.0f, angle_ys = 0.0f;
 
+float build_angle = 0.0f;
+
 bool change_r = false, change_g = false, change_b = false, change_w = true;
 bool animation_y = false;
 bool move_x = false, move_z = false;
+bool build_h = true, build_b = false, build_t = false;
 
 int house_count = 0, building_count = 0, top_count = 0;
+
+time_t startTime = time(nullptr);
+int elapsedSeconds = 0;
+
+int cost = 3000;
 
 typedef struct Rect {
     GLfloat tri_shapes[8][3];
@@ -63,6 +72,7 @@ Tree_Place tree_place;
 typedef struct Builds {
     GLfloat x[100] = {};
     GLfloat y[100] = {};
+    GLfloat angle[100] = {};
     bool build[100] = {};
 };
 
@@ -172,14 +182,17 @@ void main(int argc, char** argv) {
         house.build[i] = false;
         house.x[i] = 0.0f;
         house.y[i] = 0.0f;
+        house.angle[i] = 0.0f;
 
         building.build[i] = false;
         building.x[i] = 0.0f;
         building.y[i] = 0.0f;
+        building.angle[i] = 0.0f;
 
         top.build[i] = false;
         top.x[i] = 0.0f;
         top.y[i] = 0.0f;
+        top.angle[i] = 0.0f;
     }
 
     make_vertexShaders();
@@ -419,6 +432,8 @@ GLvoid drawScene() {
     make_build();
     make_point();
 
+    cout << "Cost: " << cost << endl;
+
     glutSwapBuffers();
 }
 
@@ -464,25 +479,59 @@ GLvoid Keyboard(unsigned char key, int x, int y) {
         cameraDirection_y += 0.1f;
         break;
 
+    case 'y':
+        build_angle += 1.0f;
+        break;
+
+    case 'Y':
+        build_angle -= 1.0f;
+        break;
+
+    case 'b':
+        if (build_h) {
+            house.build[house_count] = true;
+            house.x[house_count] = point_x;
+            house.y[house_count] = point_z;
+            house.angle[house_count] = build_angle;
+            house_count++;
+        }
+
+        if (build_b) {
+            building.build[building_count] = true;
+            building.x[building_count] = point_x;
+            building.y[building_count] = point_z;
+            building.angle[building_count] = build_angle;
+            building_count++;
+        }
+
+        if (build_t) {
+            top.build[top_count] = true;
+            top.x[top_count] = point_x;
+            top.y[top_count] = point_z;
+            top.angle[top_count] = build_angle;
+            top_count++;
+        }
+
+        cost -= 100;
+        build_angle = 0.0f;
+        break;
+
     case '1':
-        house.build[house_count] = true;
-        house.x[house_count] = point_x;
-        house.y[house_count] = point_z;
-        house_count++;
+        build_h = true;
+        build_b = false;
+        build_t = false;
         break;
 
     case '2':
-        building.build[building_count] = true;
-        building.x[building_count] = point_x;
-        building.y[building_count] = point_z;
-        building_count++;
+        build_h = false;
+        build_b = true;
+        build_t = false;
         break;
 
     case '3':
-        top.build[top_count] = true;
-        top.x[top_count] = point_x;
-        top.y[top_count] = point_z;
-        top_count++;
+        build_h = false;
+        build_b = false;
+        build_t = true;
         break;
     }
 
@@ -492,6 +541,23 @@ GLvoid Keyboard(unsigned char key, int x, int y) {
 }
 
 GLvoid Timer(int value) {
+    time_t currentTime = time(nullptr);
+    elapsedSeconds = static_cast<int>(difftime(currentTime, startTime));
+
+    if (elapsedSeconds % 10 == 0) {
+        for (int i = 0; i < 100; i++) {
+            if (building.build[i] == true) {
+                cost += 1;
+            }
+        }
+
+        for (int i = 0; i < 100; i++) {
+            if (top.build[i] == true) {
+                cost += 1;
+            }
+        }
+    }
+
     glutPostRedisplay();
     glutTimerFunc(50, Timer, 0);
 }
@@ -528,18 +594,18 @@ GLvoid Motion(int x, int y) {
 
     if (move_x) {
         if (angle_x < angle_xs) {
-            point_x += 0.05f;
-
-            if (point_x >= 10.0f) {
-                point_x -= 0.05f;
-            }
-        }
-
-        else {
             point_x -= 0.05f;
 
             if (point_x <= -10.0f) {
                 point_x += 0.05f;
+            }
+        }
+
+        else {
+            point_x += 0.05f;
+
+            if (point_x >= 10.0f) {
+                point_x -= 0.05f;
             }
         }
     }
@@ -833,10 +899,10 @@ void make_build() {
             glm::mat4 model = glm::mat4(1.0f);
 
             Tx = glm::translate(Tx, glm::vec3(house.x[i], 0.0f, house.y[i]));
-            Rz = glm::rotate(Rz, glm::radians(0.0f), glm::vec3(0.0, 1.0, 0.0));
+            Rz = glm::rotate(Rz, glm::radians(house.angle[i]), glm::vec3(0.0, 1.0, 0.0));
             model = glm::scale(model, glm::vec3(0.01, 0.01, 0.01));
 
-            TR = Rz * Tx * model;
+            TR = Tx * Rz * model;
 
             unsigned int modelLocation = glGetUniformLocation(shaderID, "modelTransform");
             glUniformMatrix4fv(modelLocation, 1, GL_FALSE, glm::value_ptr(TR));
@@ -857,10 +923,10 @@ void make_build() {
             glm::mat4 model = glm::mat4(1.0f);
 
             Tx = glm::translate(Tx, glm::vec3(building.x[i], 0.0f, building.y[i]));
-            Rz = glm::rotate(Rz, glm::radians(0.0f), glm::vec3(0.0, 1.0, 0.0));
+            Rz = glm::rotate(Rz, glm::radians(building.angle[i]), glm::vec3(0.0, 1.0, 0.0));
             model = glm::scale(model, glm::vec3(0.01, 0.01, 0.01));
 
-            TR = Rz * Tx * model;
+            TR = Tx * Rz * model;
 
             unsigned int modelLocation = glGetUniformLocation(shaderID, "modelTransform");
             glUniformMatrix4fv(modelLocation, 1, GL_FALSE, glm::value_ptr(TR));
@@ -881,10 +947,10 @@ void make_build() {
             glm::mat4 model = glm::mat4(1.0f);
 
             Tx = glm::translate(Tx, glm::vec3(top.x[i], 0.0f, top.y[i]));
-            Rz = glm::rotate(Rz, glm::radians(0.0f), glm::vec3(0.0, 1.0, 0.0));
+            Rz = glm::rotate(Rz, glm::radians(top.angle[i]), glm::vec3(0.0, 1.0, 0.0));
             model = glm::scale(model, glm::vec3(0.01, 0.01, 0.01));
 
-            TR = Rz * Tx * model;
+            TR = Tx * Rz * model;
 
             unsigned int modelLocation = glGetUniformLocation(shaderID, "modelTransform");
             glUniformMatrix4fv(modelLocation, 1, GL_FALSE, glm::value_ptr(TR));
@@ -898,7 +964,79 @@ void make_build() {
 }
 
 void make_point() {
-    unsigned int oColorLocation = glGetUniformLocation(shaderID, "objectColor");
+    if (build_h) {
+        unsigned int oColorLocation = glGetUniformLocation(shaderID, "objectColor");
+        glUniform3f(oColorLocation, 1.0f, 0.0f, 0.0f);
+
+        glm::mat4 Tx = glm::mat4(1.0f);
+        glm::mat4 Rz = glm::mat4(1.0f);
+        glm::mat4 TR = glm::mat4(1.0f);
+        glm::mat4 model = glm::mat4(1.0f);
+
+        Tx = glm::translate(Tx, glm::vec3(point_x, 0.0f, point_z));
+        Rz = glm::rotate(Rz, glm::radians(build_angle), glm::vec3(0.0, 1.0, 0.0));
+        model = glm::scale(model, glm::vec3(0.01, 0.01, 0.01));
+
+        TR = Tx * Rz * model;
+
+        unsigned int modelLocation = glGetUniformLocation(shaderID, "modelTransform");
+        glUniformMatrix4fv(modelLocation, 1, GL_FALSE, glm::value_ptr(TR));
+        glBindVertexArray(VAO_house);
+
+        glEnable(GL_DEPTH_TEST);
+
+        glDrawArrays(GL_TRIANGLES, 0, House);
+    }
+
+    if (build_b) {
+        unsigned int oColorLocation = glGetUniformLocation(shaderID, "objectColor");
+        glUniform3f(oColorLocation, 1.0f, 0.0f, 0.0f);
+
+        glm::mat4 Tx = glm::mat4(1.0f);
+        glm::mat4 Rz = glm::mat4(1.0f);
+        glm::mat4 TR = glm::mat4(1.0f);
+        glm::mat4 model = glm::mat4(1.0f);
+
+        Tx = glm::translate(Tx, glm::vec3(point_x, 0.0f, point_z));
+        Rz = glm::rotate(Rz, glm::radians(build_angle), glm::vec3(0.0, 1.0, 0.0));
+        model = glm::scale(model, glm::vec3(0.01, 0.01, 0.01));
+
+        TR = Tx * Rz * model;
+
+        unsigned int modelLocation = glGetUniformLocation(shaderID, "modelTransform");
+        glUniformMatrix4fv(modelLocation, 1, GL_FALSE, glm::value_ptr(TR));
+        glBindVertexArray(VAO_build);
+
+        glEnable(GL_DEPTH_TEST);
+
+        glDrawArrays(GL_TRIANGLES, 0, Building);
+    }
+
+    if (build_t) {
+        unsigned int oColorLocation = glGetUniformLocation(shaderID, "objectColor");
+        glUniform3f(oColorLocation, 1.0f, 0.0f, 0.0f);
+
+        glm::mat4 Tx = glm::mat4(1.0f);
+        glm::mat4 Rz = glm::mat4(1.0f);
+        glm::mat4 TR = glm::mat4(1.0f);
+        glm::mat4 model = glm::mat4(1.0f);
+
+        Tx = glm::translate(Tx, glm::vec3(point_x, 0.0f, point_z));
+        Rz = glm::rotate(Rz, glm::radians(build_angle), glm::vec3(0.0, 1.0, 0.0));
+        model = glm::scale(model, glm::vec3(0.01, 0.01, 0.01));
+
+        TR = Tx * Rz * model;
+
+        unsigned int modelLocation = glGetUniformLocation(shaderID, "modelTransform");
+        glUniformMatrix4fv(modelLocation, 1, GL_FALSE, glm::value_ptr(TR));
+        glBindVertexArray(VAO_top);
+
+        glEnable(GL_DEPTH_TEST);
+
+        glDrawArrays(GL_TRIANGLES, 0, Top);
+    }
+
+    /*unsigned int oColorLocation = glGetUniformLocation(shaderID, "objectColor");
     glUniform3f(oColorLocation, 1.0f, 0.0f, 0.0f);
 
     glm::mat4 Tx = glm::mat4(1.0f);
@@ -918,5 +1056,5 @@ void make_point() {
 
     glEnable(GL_DEPTH_TEST);
 
-    glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
+    glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);*/
 }
