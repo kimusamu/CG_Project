@@ -26,13 +26,17 @@ bool change_r = false, change_g = false, change_b = false, change_w = true;
 bool animation_y = false;
 bool move_x = false, move_z = false;
 bool build_h = true, build_b = false, build_t = false;
+bool build_trigger = false;
 
 int house_count = 0, building_count = 0, top_count = 0;
 
 time_t startTime = time(nullptr);
 int elapsedSeconds = 0;
 
+int cost_count = 0;
 int cost = 3000;
+int hour_count = 0;
+int hour = 6;
 
 struct Cost_Rec {
     GLfloat cost_x, cost_y, cost_z;
@@ -125,7 +129,7 @@ GLuint VAO_top, VBO_NORMAL_top, VBO_VERTEX_top;
 Objectload Cube_Load;
 GLint Cube = Cube_Load.loadObj("obj/plane.obj");
 
-GLuint VAO_Cube, VBO_NORMAL_Cube, VBO_VERTEX_Cube,VBO_Texcoord_Cuve;
+GLuint VAO_Cube, VBO_NORMAL_Cube, VBO_VERTEX_Cube, VBO_Texcoord_Cuve;
 
 Objectload Grass_Load;
 GLint Grass = Grass_Load.loadObj("obj/grass.obj");
@@ -397,7 +401,7 @@ GLvoid drawScene()
 
 
     //cost 출력
-    viewport2();    
+    viewport2();
     glViewport(600, 740, 200, 60);
     Cost_place();
 
@@ -473,6 +477,7 @@ GLvoid KeyBoard(unsigned char key, int x, int y)
                 building.y[building_count] = point_z;
                 building.angle[building_count] = build_angle;
                 building_count++;
+                build_trigger = true;
             }
 
             if (build_t) {
@@ -481,6 +486,7 @@ GLvoid KeyBoard(unsigned char key, int x, int y)
                 top.y[top_count] = point_z;
                 top.angle[top_count] = build_angle;
                 top_count++;
+                build_trigger = true;
             }
 
             cost -= 100;
@@ -513,7 +519,7 @@ GLvoid KeyBoard(unsigned char key, int x, int y)
 
 GLvoid TimerFunc(int value)
 {
-    time_t currentTime = time(nullptr);
+    /*time_t currentTime = time(nullptr);
     elapsedSeconds = static_cast<int>(difftime(currentTime, startTime));
 
     if (elapsedSeconds % 10 == 0) {
@@ -528,7 +534,40 @@ GLvoid TimerFunc(int value)
                 cost += 1;
             }
         }
+    }*/
+
+    if (build_trigger == true) {
+        cost_count++;
+
+        if (cost_count == 50) {
+            cost_count = 0;
+
+            for (int i = 0; i < 100; i++) {
+                if (building.build[i] == true) {
+                    cost += 1;
+                }
+            }
+
+            for (int i = 0; i < 100; i++) {
+                if (top.build[i] == true) {
+                    cost += 1;
+                }
+            }
+        }
     }
+
+    hour_count++;
+
+    if (hour_count == 50) {
+        hour_count = 0;
+        hour++;
+
+        if (hour >= 24) {
+            hour = 0;
+        }
+    }
+
+    cout << hour << " : 00" << endl;
 
     glutPostRedisplay();
     glutTimerFunc(50, TimerFunc, 0);
@@ -618,7 +657,7 @@ void viewing() {
 }
 
 void project() {
-      //투영 변환
+    //투영 변환
     glm::mat4 pTransform = glm::mat4(1.0f);
     pTransform = glm::perspective(glm::radians(45.0f), 1.0f, 0.1f, 50.0f);
     pTransform = glm::translate(pTransform, glm::vec3(0.0, 0.0, -5.0));
@@ -863,7 +902,7 @@ void move_place() {
 
             TR = Tx * Rz * model;
 
-   
+
             shaderID.setMat4("modelTransform", TR);
             glBindVertexArray(VAO_Grass);
             glBindTexture(GL_TEXTURE_2D, Grass_Load.texture);
@@ -891,7 +930,7 @@ void move_place() {
 
     glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
 
-    
+
 
     //glBindVertexArray(VAO_Cube);
     //glBindTexture(GL_TEXTURE_2D, Cube_Load.texture); //이거 왜 안입혀지냐ㅗㅠㅠㅠ
@@ -965,7 +1004,7 @@ void make_build() {
 
             TR = Tx * Rz * model;
 
-       
+
             shaderID.setMat4("modelTransform", TR);
             glBindVertexArray(VAO_build);
 
