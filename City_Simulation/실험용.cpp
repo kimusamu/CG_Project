@@ -37,6 +37,7 @@ int cost_count = 0;
 int cost = 3000;
 int hour_count = 0;
 int hour = 6;
+int minute = 0;
 
 struct Cost_Rec {
     GLfloat cost_x, cost_y, cost_z;
@@ -560,14 +561,19 @@ GLvoid TimerFunc(int value)
 
     if (hour_count == 50) {
         hour_count = 0;
-        hour++;
+        minute += 30;
+
+        if (minute >= 60) {
+            hour++;
+            minute = 0;
+        }
 
         if (hour >= 24) {
             hour = 0;
         }
     }
 
-    cout << hour << " : 00" << endl;
+    cout << hour << " : " << minute << endl;
 
     glutPostRedisplay();
     glutTimerFunc(50, TimerFunc, 0);
