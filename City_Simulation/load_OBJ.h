@@ -1,5 +1,7 @@
 #pragma once
 #define _CRT_SECURE_NO_WARNINGS
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
 #include <iostream>
 #include <gl/glew.h>
 #include <gl/freeglut.h>
@@ -13,6 +15,7 @@
 
 
 struct Objectload {
+
     std::vector< unsigned int > vertexIndices, uvIndices, normalIndices;
     std::vector< glm::vec3 > temp_vertices;
     std::vector< glm::vec2 > temp_uvs;
@@ -28,11 +31,11 @@ struct Objectload {
     float scaleAll{ 0.0 };
 
     float sizeX{ 0.0 }, sizeY{ 0.0 }, sizeZ{ 0.0 };
+    unsigned int texture;
 
     int loadObj(const char* filename);
-};
-
-int Objectload::loadObj(const char* filename)
+    void InitTexture(const char* filename);
+}; int Objectload::loadObj(const char* filename)
 {
     FILE* objFile;
 
@@ -159,4 +162,29 @@ int Objectload::loadObj(const char* filename)
         outnormal.push_back(vertex);
     }
     return outvertex.size();
+}
+//텍스쳐 로딩 함수
+void Objectload::InitTexture(const char* filename)
+{
+    glGenTextures(1, &texture);
+    stbi_set_flip_vertically_on_load(true);
+    glBindTexture(GL_TEXTURE_2D, texture);
+    // 텍스처 wrapping/filtering 옵션 설정(현재 바인딩된 텍스처 객체에 대해)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    // 텍스처 로드 및 생성
+    int width, height, nrChannels;
+    unsigned char* data = stbi_load(filename, &width, &height, &nrChannels, 0);
+    if (data)
+    {
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+        glGenerateMipmap(GL_TEXTURE_2D);
+    }
+    else
+    {
+        std::cout << "Failed to load texture" << std::endl;
+    }
+    stbi_image_free(data);
 }

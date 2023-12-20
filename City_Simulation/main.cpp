@@ -1,21 +1,8 @@
-#define _CRT_SECURE_NO_WARNINGS
+Ôªø#define _CRT_SECURE_NO_WARNINGS
+#define MAP_SIZE 10.f
 
-#include <iostream>
-#include <random>
-#include <fstream>
-#include <string>
-#include <math.h>
-#include <Windows.h>
-#include <ctime>
-#include <gl/glew.h>
-#include <gl/freeglut.h>
-#include <gl/freeglut_ext.h>
-#include <gl/glm/glm.hpp>
-#include <gl/glm/ext.hpp>
-#include <gl/glm/gtc/type_ptr.hpp>
-#include <gl/glm/gtc/matrix_transform.hpp>
-#include "objRead.h"
-
+#include "shader.h"
+#include "load_OBJ.h"
 using namespace std;
 
 int windowWidth = 800;
@@ -27,7 +14,8 @@ float cameraPos_x = 0.0f, cameraPos_y = 5.0f, cameraPos_z = 5.0f;
 float cameraDirection_x = 0.0f, cameraDirection_y = 0.0f, cameraDirection_z = 0.0f;
 float cameraUp_x = 0.0f, cameraUp_y = 1.0f, cameraUp_z = 0.0f;
 
-float lightPos_x = 0.0f, lightPos_y = 10.0f, lightPos_z = 0.0f;
+float lightPos_x = 0.1f, lightPos_y = 10.0f, lightPos_z = 0.1f;
+float angularSpeed = 0.0018f;  // Í≥µÏ†Ñ ÏÜçÎèÑ
 
 float build_x = 0.0f, build_y = 0.0f, build_z = 0.0f;
 float point_x = 0.0f, point_z = 0.0f;
@@ -39,13 +27,25 @@ bool change_r = false, change_g = false, change_b = false, change_w = true;
 bool animation_y = false;
 bool move_x = false, move_z = false;
 bool build_h = true, build_b = false, build_t = false;
+bool build_trigger = false;
+bool six_trigger = false, twle_trigger = false;
 
 int house_count = 0, building_count = 0, top_count = 0;
 
 time_t startTime = time(nullptr);
 int elapsedSeconds = 0;
 
+int cost_count = 0;
 int cost = 3000;
+int hour_count = 0;
+int hour = 12;
+int minute = 0;
+
+struct Cost_Rec {
+    GLfloat cost_x, cost_y, cost_z;
+};
+
+Cost_Rec costbox[5];
 
 typedef struct Rect {
     GLfloat tri_shapes[8][3];
@@ -102,49 +102,59 @@ GLint width, height;
 GLuint shaderProgramID;
 GLuint vertexShader;
 GLuint fragmentShader;
-GLuint shaderID;
 
 Objectload Sphere_Load;
-GLint Sphere = Sphere_Load.loadObj("Sphere.obj");
+GLint Sphere = Sphere_Load.loadObj("obj/Sphere.obj");
 
-GLuint VAO_sphere, VBO_NORMAL_sphere, VBO_VERTEX_sphere;
+GLuint VAO_sphere, VBO_NORMAL_sphere, VBO_VERTEX_sphere, VBO_Texcoord_sphere;
 
 Objectload Tree_Load;
-GLint Tree = Tree_Load.loadObj("Tree.obj");
+GLint Tree = Tree_Load.loadObj("obj/Tree.obj");
 
 GLuint VAO_tree, VBO_NORMAL_tree, VBO_VERTEX_tree;
 
 Objectload House_Load;
-GLint House = House_Load.loadObj("House1.obj");
+GLint House = House_Load.loadObj("obj/House1.obj");
 
-GLuint VAO_house, VBO_NORMAL_house, VBO_VERTEX_house;
+GLuint VAO_house, VBO_NORMAL_house, VBO_VERTEX_house, VBO_Texcoord_house;
 
 Objectload Building_Load;
-GLint Building = Building_Load.loadObj("building1.obj");
+GLint Building = Building_Load.loadObj("obj/building1.obj");
 
-GLuint VAO_build, VBO_NORMAL_build, VBO_VERTEX_build;
+GLuint VAO_build, VBO_NORMAL_build, VBO_VERTEX_build, VBO_Texcoord_build;
 
 Objectload Top_Load;
-GLint Top = Top_Load.loadObj("top1.obj");
+GLint Top = Top_Load.loadObj("obj/top1.obj");
 
-GLuint VAO_top, VBO_NORMAL_top, VBO_VERTEX_top;
+GLuint VAO_top, VBO_NORMAL_top, VBO_VERTEX_top, VBO_Texcoord_top;
 
+Objectload Cube_Load;
+GLint Cube = Cube_Load.loadObj("obj/plane.obj");
 
-void make_vertexShaders();
-void make_fragmentShaders();
-GLuint make_shaderProgram();
-void InitBuffer();
-char* filetobuf(const char* file);
+GLuint VAO_Cube, VBO_NORMAL_Cube, VBO_VERTEX_Cube, VBO_Texcoord_Cuve;
+
+Objectload Grass_Load;
+GLint Grass = Grass_Load.loadObj("obj/grass.obj");
+
+GLuint VAO_Grass, VBO_NORMAL_Grass, VBO_VERTEX_Grass, VBO_Texcoord_Grass;
+
+Objectload Road_Load;
+GLint Road = Road_Load.loadObj("obj/grass.obj");
+
+GLuint VAO_Road, VBO_NORMAL_Road, VBO_VERTEX_Road, VBO_Texcoord_Road;
 
 GLvoid drawScene(GLvoid);
 GLvoid Reshape(int w, int h);
-GLvoid Keyboard(unsigned char key, int x, int y);
-GLvoid Timer(int value);
+GLvoid KeyBoard(unsigned char key, int x, int y);
+GLvoid TimerFunc(int value);
 GLvoid Mouse(int button, int state, int x, int y);
 GLvoid MouseMove(int x, int y);
 GLvoid Motion(int x, int y);
 
+
 void viewport();
+void viewport2();
+void viewport3();
 void viewing();
 void project();
 
@@ -154,6 +164,9 @@ void make_place();
 void make_build();
 void move_place();
 void make_point();
+void Cost_place();
+void Time_place();
+void make_road();
 
 void light();
 
@@ -161,144 +174,16 @@ enum { xPos, yPos, zPos };
 enum { nxPos, nyPos, nzPos };
 enum { rColor, gColor, bColor };
 
-void main(int argc, char** argv) {
-    glutInit(&argc, argv);
-    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
-    glutInitWindowPosition(0, 0);
-    glutInitWindowSize(windowWidth, windowHeight);
-    glutCreateWindow("OpenGL");
-    glewExperimental = GL_TRUE;
 
-    if (glewInit() != GLEW_OK) {
-        cerr << "Unable to initialize GLEW" << endl;
-        exit(EXIT_FAILURE);
-    }
-
-    else {
-        cout << "GLEW Initialized\n";
-    }
-
-    for (int i = 0; i < 100; i++) {
-        house.build[i] = false;
-        house.x[i] = 0.0f;
-        house.y[i] = 0.0f;
-        house.angle[i] = 0.0f;
-
-        building.build[i] = false;
-        building.x[i] = 0.0f;
-        building.y[i] = 0.0f;
-        building.angle[i] = 0.0f;
-
-        top.build[i] = false;
-        top.x[i] = 0.0f;
-        top.y[i] = 0.0f;
-        top.angle[i] = 0.0f;
-    }
-
-    make_vertexShaders();
-    make_fragmentShaders();
-    shaderProgramID = make_shaderProgram();
-    make_place();
-    InitBuffer();
-    glutDisplayFunc(drawScene);
-    glutReshapeFunc(Reshape);
-    glutKeyboardFunc(Keyboard);
-    glutMouseFunc(Mouse);
-    glutMotionFunc(Motion);
-    glutTimerFunc(50, Timer, 0);
-    glutMainLoop();
-}
-
-char* filetobuf(const char* file) {
-    FILE* fptr;
-    long length;
-    char* buf;
-
-    fptr = fopen(file, "rb");
-    if (!fptr) {
-        perror("∆ƒ¿œ ø≠±‚ Ω«∆–");
-        return NULL;
-    }
-
-    fseek(fptr, 0, SEEK_END);
-    length = ftell(fptr);
-    fseek(fptr, 0, SEEK_SET);
-
-    buf = (char*)malloc(length + 1);
-    if (!buf) {
-        perror("∏ﬁ∏∏Æ «“¥Á Ω«∆–");
-        fclose(fptr);
-        return NULL;
-    }
-
-    size_t bytesRead = fread(buf, 1, length, fptr);
-    if (bytesRead != length) {
-        perror("∆ƒ¿œ ¿–±‚ Ω«∆–");
-        fclose(fptr);
-        free(buf);
-        return NULL;
-    }
-
-    buf[length] = '\0';
-
-    fclose(fptr);
-    return buf;
-}
-
-void make_vertexShaders() {
-    GLchar* vertexSource;
-    vertexSource = filetobuf("vertex.glsl");
-    vertexShader = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(vertexShader, 1, &vertexSource, NULL);
-    glCompileShader(vertexShader);
-    GLint result;
-    GLchar errorLog[512];
-    glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &result);
-
-    if (!result) {
-        glGetShaderInfoLog(vertexShader, 512, NULL, errorLog);
-        cerr << "ERROR: vertex shader ƒƒ∆ƒ¿œ Ω«∆–\n" << errorLog << endl;
-        return;
-    }
-}
-
-void make_fragmentShaders() {
-    GLchar* fragmentSource;
-    fragmentSource = filetobuf("fragment.glsl");
-    fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fragmentShader, 1, &fragmentSource, NULL);
-    glCompileShader(fragmentShader);
-    GLint result;
-    GLchar errorLog[512];
-    glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &result);
-
-    if (!result) {
-        glGetShaderInfoLog(fragmentShader, 512, NULL, errorLog);
-        cerr << "ERROR: frag_shader ƒƒ∆ƒ¿œ Ω«∆–\n" << errorLog << endl;
-        return;
-    }
-}
-
-GLuint make_shaderProgram() {
-    int result;
-    char errorLog[512];
-
-    shaderID = glCreateProgram();
-    glAttachShader(shaderID, vertexShader);
-    glAttachShader(shaderID, fragmentShader);
-    glLinkProgram(shaderID);
-    glDeleteShader(vertexShader);
-    glDeleteShader(fragmentShader);
-    glGetProgramiv(shaderID, GL_LINK_STATUS, &result);
-
-    if (!result) {
-        glGetProgramInfoLog(shaderID, 512, NULL, errorLog);
-        cerr << "ERROR: shader program ø¨∞· Ω«∆–\n" << errorLog << endl;
-        return false;
-    }
-
-    glUseProgram(shaderID);
-    return shaderID;
+void initTextures() {
+    Cube_Load.InitTexture("image/2.png");
+    Tree_Load.InitTexture("image/Autumn Tree.png");
+    Grass_Load.InitTexture("image/grasss.png");
+    Road_Load.InitTexture("image/road.png");
+    House_Load.InitTexture("image/house_tex.png");
+    Building_Load.InitTexture("image/building_tex.png");
+    Top_Load.InitTexture("image/top_tex.png");
+    Sphere_Load.InitTexture("image/sun_tex.png");
 }
 
 void InitBuffer() {
@@ -328,6 +213,7 @@ void InitBuffer() {
     glGenVertexArrays(1, &VAO_sphere);
     glGenBuffers(1, &VBO_NORMAL_sphere);
     glGenBuffers(1, &VBO_VERTEX_sphere);
+    glGenBuffers(1, &VBO_Texcoord_sphere);
 
     glBindVertexArray(VAO_sphere);
 
@@ -340,6 +226,11 @@ void InitBuffer() {
     glBufferData(GL_ARRAY_BUFFER, Sphere_Load.outnormal.size() * sizeof(glm::vec3), &Sphere_Load.outnormal[0], GL_STATIC_DRAW);
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), 0);
     glEnableVertexAttribArray(1);
+
+    glBindBuffer(GL_ARRAY_BUFFER, VBO_Texcoord_sphere);
+    glBufferData(GL_ARRAY_BUFFER, Sphere_Load.outuv.size() * sizeof(glm::vec2), &Sphere_Load.outuv[0], GL_STATIC_DRAW);
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), 0);
+    glEnableVertexAttribArray(2);
 
     glGenVertexArrays(1, &VAO_tree);
     glGenBuffers(1, &VBO_NORMAL_tree);
@@ -360,6 +251,7 @@ void InitBuffer() {
     glGenVertexArrays(1, &VAO_house);
     glGenBuffers(1, &VBO_NORMAL_house);
     glGenBuffers(1, &VBO_VERTEX_house);
+    glGenBuffers(1, &VBO_Texcoord_house);
 
     glBindVertexArray(VAO_house);
 
@@ -373,9 +265,15 @@ void InitBuffer() {
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), 0);
     glEnableVertexAttribArray(1);
 
+    glBindBuffer(GL_ARRAY_BUFFER, VBO_Texcoord_house);
+    glBufferData(GL_ARRAY_BUFFER, House_Load.outuv.size() * sizeof(glm::vec2), &House_Load.outuv[0], GL_STATIC_DRAW);
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), 0);
+    glEnableVertexAttribArray(2);
+
     glGenVertexArrays(1, &VAO_build);
     glGenBuffers(1, &VBO_NORMAL_build);
     glGenBuffers(1, &VBO_VERTEX_build);
+    glGenBuffers(1, &VBO_Texcoord_build);
 
     glBindVertexArray(VAO_build);
 
@@ -389,9 +287,15 @@ void InitBuffer() {
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), 0);
     glEnableVertexAttribArray(1);
 
+    glBindBuffer(GL_ARRAY_BUFFER, VBO_Texcoord_build);
+    glBufferData(GL_ARRAY_BUFFER, Building_Load.outuv.size() * sizeof(glm::vec2), &Building_Load.outuv[0], GL_STATIC_DRAW);
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), 0);
+    glEnableVertexAttribArray(2);
+
     glGenVertexArrays(1, &VAO_top);
     glGenBuffers(1, &VBO_NORMAL_top);
     glGenBuffers(1, &VBO_VERTEX_top);
+    glGenBuffers(1, &VBO_Texcoord_top);
 
     glBindVertexArray(VAO_top);
 
@@ -404,7 +308,79 @@ void InitBuffer() {
     glBufferData(GL_ARRAY_BUFFER, Top_Load.outnormal.size() * sizeof(glm::vec3), &Top_Load.outnormal[0], GL_STATIC_DRAW);
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), 0);
     glEnableVertexAttribArray(1);
+
+    glBindBuffer(GL_ARRAY_BUFFER, VBO_Texcoord_top);
+    glBufferData(GL_ARRAY_BUFFER, Top_Load.outuv.size() * sizeof(glm::vec2), &Top_Load.outuv[0], GL_STATIC_DRAW);
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), 0);
+    glEnableVertexAttribArray(2);
+
+    glGenVertexArrays(1, &VAO_Cube);
+    glGenBuffers(1, &VBO_NORMAL_Cube);
+    glGenBuffers(1, &VBO_VERTEX_Cube);
+    glGenBuffers(1, &VBO_Texcoord_Cuve);
+
+    glBindVertexArray(VAO_Cube);
+
+    glBindBuffer(GL_ARRAY_BUFFER, VBO_VERTEX_Cube);
+    glBufferData(GL_ARRAY_BUFFER, Cube_Load.outvertex.size() * sizeof(glm::vec3), &Cube_Load.outvertex[0], GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), 0);
+    glEnableVertexAttribArray(0);
+
+    glBindBuffer(GL_ARRAY_BUFFER, VBO_NORMAL_Cube);
+    glBufferData(GL_ARRAY_BUFFER, Cube_Load.outnormal.size() * sizeof(glm::vec3), &Cube_Load.outnormal[0], GL_STATIC_DRAW);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), 0);
+    glEnableVertexAttribArray(1);
+
+    glBindBuffer(GL_ARRAY_BUFFER, VBO_Texcoord_Cuve);
+    glBufferData(GL_ARRAY_BUFFER, Cube_Load.outuv.size() * sizeof(glm::vec2), &Cube_Load.outuv[0], GL_STATIC_DRAW);
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), 0);
+    glEnableVertexAttribArray(2);
+
+    glGenVertexArrays(1, &VAO_Grass);
+    glGenBuffers(1, &VBO_NORMAL_Grass);
+    glGenBuffers(1, &VBO_VERTEX_Grass);
+    glGenBuffers(1, &VBO_Texcoord_Grass);
+
+    glBindVertexArray(VAO_Grass);
+
+    glBindBuffer(GL_ARRAY_BUFFER, VBO_VERTEX_Grass);
+    glBufferData(GL_ARRAY_BUFFER, Grass_Load.outvertex.size() * sizeof(glm::vec3), &Grass_Load.outvertex[0], GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), 0);
+    glEnableVertexAttribArray(0);
+
+    glBindBuffer(GL_ARRAY_BUFFER, VBO_NORMAL_Grass);
+    glBufferData(GL_ARRAY_BUFFER, Grass_Load.outnormal.size() * sizeof(glm::vec3), &Grass_Load.outnormal[0], GL_STATIC_DRAW);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), 0);
+    glEnableVertexAttribArray(1);
+
+    glBindBuffer(GL_ARRAY_BUFFER, VBO_Texcoord_Grass);
+    glBufferData(GL_ARRAY_BUFFER, Grass_Load.outuv.size() * sizeof(glm::vec2), &Grass_Load.outuv[0], GL_STATIC_DRAW);
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), 0);
+    glEnableVertexAttribArray(2);
+
+    glGenVertexArrays(1, &VAO_Road);
+    glGenBuffers(1, &VBO_NORMAL_Road);
+    glGenBuffers(1, &VBO_VERTEX_Road);
+    glGenBuffers(1, &VBO_Texcoord_Road);
+
+    glBindVertexArray(VAO_Road);
+
+    glBindBuffer(GL_ARRAY_BUFFER, VBO_VERTEX_Road);
+    glBufferData(GL_ARRAY_BUFFER, Road_Load.outvertex.size() * sizeof(glm::vec3), &Road_Load.outvertex[0], GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), 0);
+    glEnableVertexAttribArray(0);
+
+    glBindBuffer(GL_ARRAY_BUFFER, VBO_NORMAL_Road);
+    glBufferData(GL_ARRAY_BUFFER, Road_Load.outnormal.size() * sizeof(glm::vec3), &Road_Load.outnormal[0], GL_STATIC_DRAW);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), 0);
+    glEnableVertexAttribArray(1);
+
+    glBindBuffer(GL_ARRAY_BUFFER, VBO_Texcoord_Road);
+    glBufferData(GL_ARRAY_BUFFER, Road_Load.outuv.size() * sizeof(glm::vec2), &Road_Load.outuv[0], GL_STATIC_DRAW);
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), 0);
+    glEnableVertexAttribArray(2);
 }
+
 
 float GenerateRandomColor() {
     random_device rd;
@@ -413,26 +389,94 @@ float GenerateRandomColor() {
     return dis(gen);
 }
 
-GLvoid drawScene() {
+int main(int argc, char** argv)
+{
+    srand(time(NULL));
+    glutInit(&argc, argv);
+    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
+    glutInitWindowPosition(0, 0);
+    glutInitWindowSize(800, 800);
+    glutCreateWindow("City Simulation");
+
+    glewExperimental = GL_TRUE;
+    if (glewInit() != GLEW_OK)
+    {
+        std::cerr << "Unable to initialize GLEW" << std::endl;
+        exit(EXIT_FAILURE);
+    }
+    else
+        std::cout << "GLEW Initialized\n";
+
+    for (int i = 0; i < 100; i++) {
+        house.build[i] = false;
+        house.x[i] = 0.0f;
+        house.y[i] = 0.0f;
+        house.angle[i] = 0.0f;
+
+        building.build[i] = false;
+        building.x[i] = 0.0f;
+        building.y[i] = 0.0f;
+        building.angle[i] = 0.0f;
+
+        top.build[i] = false;
+        top.x[i] = 0.0f;
+        top.y[i] = 0.0f;
+        top.angle[i] = 0.0f;
+    }
+    make_place();
+
+    InitBuffer();
+    initTextures();
+    shaderID.makeShader("vertexShaderSource.glsl", "fragmentShaderSource.glsl");
+    glutKeyboardFunc(KeyBoard);
+    glutTimerFunc(50, TimerFunc, 0);
+    glutMouseFunc(Mouse);
+    glutMotionFunc(Motion);
+    glutDisplayFunc(drawScene);
+    glutReshapeFunc(Reshape);
+    glutMainLoop();
+}
+
+GLvoid drawScene()
+{
+    shaderID.use();
+
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
-    glUseProgram(shaderID);
-
     light();
 
     viewport();
+    glViewport(0, 0, 800, 800);
+
     viewing();
     project();
 
+    glEnable(GL_DEPTH_TEST);
+
     make_sun();
     move_place();
-    make_tree();
+    make_road();
     make_build();
+    make_tree();
+
+    glDisable(GL_DEPTH_TEST);
+
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_ONE, GL_ONE);
+
     make_point();
 
-    cout << "Cost: " << cost << endl;
+    viewport2();
+    glViewport(600, 740, 200, 60);
+    Cost_place();
+
+    viewport3();
+    glViewport(-100, 740, 200, 60);
+    Time_place();
+
+    glDisable(GL_BLEND);
 
     glutSwapBuffers();
 }
@@ -443,12 +487,13 @@ GLvoid Reshape(int w, int h) {
     glutSwapBuffers();
 }
 
-GLvoid Keyboard(unsigned char key, int x, int y) {
-    switch (key) {
+GLvoid KeyBoard(unsigned char key, int x, int y)
+{
+    switch (key)
+    {
     case 'q':
-        exit(0);
+        exit(-1);
         break;
-
     case 'w':
         cameraPos_z -= 0.1f;
         cameraDirection_z -= 0.1f;
@@ -488,7 +533,7 @@ GLvoid Keyboard(unsigned char key, int x, int y) {
         break;
 
     case 'b':
-        if (cost >= 100) {
+        if (cost >= 100 && 6 <= hour && hour <= 22) {
             if (build_h) {
                 house.build[house_count] = true;
                 house.x[house_count] = point_x;
@@ -503,6 +548,7 @@ GLvoid Keyboard(unsigned char key, int x, int y) {
                 building.y[building_count] = point_z;
                 building.angle[building_count] = build_angle;
                 building_count++;
+                build_trigger = true;
             }
 
             if (build_t) {
@@ -511,6 +557,7 @@ GLvoid Keyboard(unsigned char key, int x, int y) {
                 top.y[top_count] = point_z;
                 top.angle[top_count] = build_angle;
                 top_count++;
+                build_trigger = true;
             }
 
             cost -= 100;
@@ -536,33 +583,79 @@ GLvoid Keyboard(unsigned char key, int x, int y) {
         build_t = true;
         break;
     }
-
     InitBuffer();
     drawScene();
     glutPostRedisplay();
 }
 
-GLvoid Timer(int value) {
-    time_t currentTime = time(nullptr);
-    elapsedSeconds = static_cast<int>(difftime(currentTime, startTime));
 
-    if (elapsedSeconds % 10 == 0) {
-        for (int i = 0; i < 100; i++) {
-            if (building.build[i] == true) {
-                cost += 1;
+GLvoid TimerFunc(int value)
+{
+    if (build_trigger == true) {
+        cost_count++;
+
+        if (cost_count == 50) {
+            cost_count = 0;
+
+            for (int i = 0; i < 100; i++) {
+                if (building.build[i] == true) {
+                    cost += 10;
+                }
             }
-        }
 
-        for (int i = 0; i < 100; i++) {
-            if (top.build[i] == true) {
-                cost += 1;
+            for (int i = 0; i < 100; i++) {
+                if (top.build[i] == true) {
+                    cost += 10;
+                }
             }
         }
     }
 
+    hour_count++;
+
+    if (hour_count == 40) {
+        hour_count = 0;
+        minute += 30;
+
+        if (minute >= 60) {
+            hour++;
+            minute = 0;
+        }
+
+        if (hour >= 24) {
+            hour = 0;
+        }
+    }
+
+    float newX = lightPos_x * cos(angularSpeed) - lightPos_y * sin(angularSpeed);
+    float newY = lightPos_x * sin(angularSpeed) + lightPos_y * cos(angularSpeed);
+    
+    if (hour == 6 && six_trigger == true) {
+        newX = 10;
+        newY = 0;
+        angularSpeed = 0.0033f;
+        six_trigger = false;
+    }
+
+    if (hour == 12 && twle_trigger == true) {
+        newX = 0;
+        newY = 10;
+        angularSpeed = 0.0018f;
+        six_trigger = false;
+    }
+
+    if (hour == 5) {
+        six_trigger = true;
+        twle_trigger = true;
+    }
+    
+    lightPos_x = newX;
+    lightPos_y = newY;
+
     glutPostRedisplay();
-    glutTimerFunc(50, Timer, 0);
+    glutTimerFunc(50, TimerFunc, 0);
 }
+
 
 GLvoid ConvertWindowXYOpenGLXY(int x, int y, float* ox, float* oy) {
     *ox = (float)x / windowWidth * 2.0 - 1.0;
@@ -637,29 +730,23 @@ GLvoid Motion(int x, int y) {
 }
 
 void viewing() {
-    glm::mat4 view = glm::mat4(1.0f);
+    glm::mat4 vTransform = glm::mat4(1.0f);
     glm::vec3 cameraPos = glm::vec3(cameraPos_x, cameraPos_y, cameraPos_z);
     glm::vec3 cameraDirection = glm::vec3(cameraDirection_x, cameraDirection_y, cameraDirection_z);
     glm::vec3 cameraUp = glm::vec3(cameraUp_x, cameraUp_y, cameraUp_z);
-    view = glm::lookAt(cameraPos, cameraDirection, cameraUp);
-    unsigned int viewLocation = glGetUniformLocation(shaderID, "viewTransform");
-    glUniformMatrix4fv(viewLocation, 1, GL_FALSE, &view[0][0]);
+    vTransform = glm::lookAt(cameraPos, cameraDirection, cameraUp);
+    shaderID.setMat4("viewTransform", vTransform);
+    shaderID.setVec3("viewPos", 0, 0, 0);
 }
 
 void project() {
-    glm::mat4 projection = glm::mat4(1.0f);
-    projection = glm::perspective(glm::radians(45.0f), 1.0f, 0.1f, 50.0f);
-    projection = glm::translate(projection, glm::vec3(0.0, 0.0, -5.0));
-
-    unsigned int projectionLocation = glGetUniformLocation(shaderID, "projectionTransform");
-    glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, &projection[0][0]);
+    glm::mat4 pTransform = glm::mat4(1.0f);
+    pTransform = glm::perspective(glm::radians(45.0f), 1.0f, 0.1f, 50.0f);
+    pTransform = glm::translate(pTransform, glm::vec3(0.0, 0.0, -5.0));
+    shaderID.setMat4("projectionTransform", pTransform);
 }
 
 void viewport() {
-    int modelLoc = glGetUniformLocation(shaderID, "modelTransform");
-    int viewLoc = glGetUniformLocation(shaderID, "viewTransform");
-    int projLoc = glGetUniformLocation(shaderID, "projectionTransform");
-
     float yAngle = 0.0f;
 
     glm::mat4 mTransform = glm::mat4(1.0f);
@@ -671,16 +758,61 @@ void viewport() {
     glm::vec3 cameraUp = glm::vec3(cameraUp_x, cameraUp_y, cameraUp_z);
 
     mTransform = glm::rotate(mTransform, glm::radians(yAngle), glm::vec3(0.0f, 1.0, 0.0f));
-    glUniformMatrix4fv(modelLoc, 1, GL_FALSE, &mTransform[0][0]);
+    shaderID.setMat4("modelTransform", mTransform);
+    shaderID.setVec3("modelTransform", 0, 0, 0);
+
     vTransform = glm::lookAt(cameraPos, cameraDirection, cameraUp);
-    glUniformMatrix4fv(viewLoc, 1, GL_FALSE, &vTransform[0][0]);
+    shaderID.setMat4("viewTransform", vTransform);
+    shaderID.setVec3("viewPos", 0, 0, 0);
+
     pTransform = glm::perspective(glm::radians(60.0f), (float)windowWidth / (float)windowHeight, 0.1f, 200.0f);
-    glUniformMatrix4fv(projLoc, 1, GL_FALSE, &pTransform[0][0]);
+    shaderID.setMat4("projectionTransform", pTransform);
+    shaderID.setVec3("projectionTransform", 0, 0, 0);
+}
+
+void viewport2() {
+    float yAngle = 0.0f;
+
+    glm::mat4 vTransform = glm::mat4(1.0f);
+    glm::mat4 pTransform = glm::mat4(1.0f);
+
+    float xValue = 15.7f;
+    glm::vec3 cameraPos = glm::vec3(xValue, 1.635f, 0.f);
+    glm::vec3 cameraDirection = glm::vec3(xValue, 0.0f, 0);
+    glm::vec3 cameraUp = glm::vec3(0, 0, -1.f);
+
+    vTransform = glm::lookAt(cameraPos, cameraDirection, cameraUp);
+    shaderID.setMat4("viewTransform", vTransform);
+    shaderID.setVec3("viewPos", 0, 0, 0);
+
+    pTransform = glm::ortho(-1.9f, 1.9f, -1.9f, 1.9f, -5.f, 5.f);
+    shaderID.setMat4("projectionTransform", pTransform);
+    shaderID.setVec3("projectionTransform", 0, 0, 0);
+}
+
+void viewport3() {
+    float yAngle = 0.0f;
+
+    glm::mat4 vTransform = glm::mat4(1.0f);
+    glm::mat4 pTransform = glm::mat4(1.0f);
+
+    float xValue = -15.7f;
+    glm::vec3 cameraPos = glm::vec3(xValue, 1.635f, 0.f);
+    glm::vec3 cameraDirection = glm::vec3(xValue, 0.0f, 0);
+    glm::vec3 cameraUp = glm::vec3(0, 0, -1.f);
+
+    vTransform = glm::lookAt(cameraPos, cameraDirection, cameraUp);
+    shaderID.setMat4("viewTransform", vTransform);
+    shaderID.setVec3("viewPos", 0, 0, 0);
+
+
+    pTransform = glm::ortho(-3.9f, 3.9f, -1.9f, 1.9f, -5.f, 5.f);
+    shaderID.setMat4("projectionTransform", pTransform);
+    shaderID.setVec3("projectionTransform", 0, 0, 0);
 }
 
 void make_tree() {
-    unsigned int oColorLocation = glGetUniformLocation(shaderID, "objectColor");
-    glUniform3f(oColorLocation, 0.f, 0.5f, 0.f);
+    shaderID.setVec3("objectColor", 0.f, 0.5f, 0.f);
 
     for (int i = 0; i < 8; ++i) {
         for (int j = 0; j < 8; ++j) {
@@ -696,12 +828,10 @@ void make_tree() {
 
                 TR = Rz * Tx * model;
 
-                unsigned int modelLocation = glGetUniformLocation(shaderID, "modelTransform");
-                glUniformMatrix4fv(modelLocation, 1, GL_FALSE, glm::value_ptr(TR));
+                shaderID.setMat4("modelTransform", TR);
+                shaderID.setVec3("objectColor", 1.f, 1.f, 1.f);
                 glBindVertexArray(VAO_tree);
-
-                glEnable(GL_DEPTH_TEST);
-
+                glBindTexture(GL_TEXTURE_2D, Tree_Load.texture);
                 glDrawArrays(GL_TRIANGLES, 0, Tree);
             }
 
@@ -717,12 +847,9 @@ void make_tree() {
 
                 TR = Rz * Tx * model;
 
-                unsigned int modelLocation = glGetUniformLocation(shaderID, "modelTransform");
-                glUniformMatrix4fv(modelLocation, 1, GL_FALSE, glm::value_ptr(TR));
+                shaderID.setMat4("modelTransform", TR);
                 glBindVertexArray(VAO_tree);
-
-                glEnable(GL_DEPTH_TEST);
-
+                glBindTexture(GL_TEXTURE_2D, Tree_Load.texture);
                 glDrawArrays(GL_TRIANGLES, 0, Tree);
             }
         }
@@ -730,8 +857,7 @@ void make_tree() {
 }
 
 void make_sun() {
-    unsigned int oColorLocation = glGetUniformLocation(shaderID, "objectColor");
-    glUniform3f(oColorLocation, 1.0f, 1.0f, 0.0f);
+    shaderID.setVec3("objectColor", 1.0f, 1.0f, 0.0f);
 
     glm::mat4 Tx = glm::mat4(1.0f);
     glm::mat4 Rz = glm::mat4(1.0f);
@@ -744,27 +870,24 @@ void make_sun() {
 
     TR = Rz * Tx * model;
 
-    unsigned int modelLocation = glGetUniformLocation(shaderID, "modelTransform");
-    glUniformMatrix4fv(modelLocation, 1, GL_FALSE, glm::value_ptr(TR));
+    shaderID.setMat4("modelTransform", TR);
     glBindVertexArray(VAO_sphere);
-
-    glEnable(GL_DEPTH_TEST);
-
+    glBindTexture(GL_TEXTURE_2D, Sphere_Load.texture);
     glDrawArrays(GL_TRIANGLES, 0, Sphere);
 }
 
 void light() {
-    unsigned int lightFlagLocation = glGetUniformLocation(shaderID, "light_Flag");
-    glUniform3f(lightFlagLocation, 1.0, 1.0, 1.0);
+    shaderID.setVec3("lightPos", lightPos_x, lightPos_y, lightPos_z);
 
-    unsigned int lightPosLocation = glGetUniformLocation(shaderProgramID, "lightPos");
-    glUniform3f(lightPosLocation, lightPos_x, lightPos_y, lightPos_z);
+    if (hour >= 6 && hour <= 22) {
+        shaderID.setVec3("lightColor", 1.f, 1.f, 1.f);
+    }
 
-    unsigned int lightColorLocation = glGetUniformLocation(shaderProgramID, "lightColor");
-    glUniform3f(lightColorLocation, 1.0, 1.0, 1.0);
-
-    unsigned int viewPosLocation = glGetUniformLocation(shaderProgramID, "viewPos");
-    glUniform3f(viewPosLocation, cameraPos_x, cameraPos_y, cameraPos_z);
+    else {
+        shaderID.setVec3("lightColor", 0.6f, 0.6f, 0.6f);
+    }
+    
+    shaderID.setVec3("viewPos", cameraPos_x, cameraPos_y, cameraPos_z);
 }
 
 void make_place() {
@@ -842,8 +965,7 @@ void make_place() {
 void move_place() {
     for (int i = 0; i < 10; ++i) {
         for (int j = 0; j < 10; j++) {
-            unsigned int oColorLocation = glGetUniformLocation(shaderID, "objectColor");
-            glUniform3f(oColorLocation, 0.2f, 0.8f, 0.0f);
+            shaderID.setVec3("objectColor", 0.5f, 0.5f, 0.5f);
 
             glm::mat4 Tx = glm::mat4(1.0f);
             glm::mat4 Rz = glm::mat4(1.0f);
@@ -852,23 +974,20 @@ void move_place() {
 
             Tx = glm::translate(Tx, glm::vec3(build_place.x[i], 0.01, build_place.y[j]));
             Rz = glm::rotate(Rz, glm::radians(0.0f), glm::vec3(0.0, 1.0, 0.0));
-            model = glm::scale(model, glm::vec3(1.5, 0.0001, 1.5));
+            model = glm::scale(model, glm::vec3(0.12f, 0.001f, 0.12f));
 
             TR = Tx * Rz * model;
 
-            unsigned int modelLocation = glGetUniformLocation(shaderID, "modelTransform");
-            glUniformMatrix4fv(modelLocation, 1, GL_FALSE, glm::value_ptr(TR));
-            glBindVertexArray(place_vao);
-
-            glEnable(GL_DEPTH_TEST);
-
-            glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
+            shaderID.setMat4("modelTransform", TR);
+            glBindVertexArray(VAO_Grass);
+            glBindTexture(GL_TEXTURE_2D, Grass_Load.texture);
+            glDrawArrays(GL_TRIANGLES, 0, Grass);
         }
     }
+}
 
-    unsigned int oColorLocation = glGetUniformLocation(shaderID, "objectColor");
-    glUniform3f(oColorLocation, 0.5f, 0.5f, 0.5f);
-
+void make_road() {
+    shaderID.setVec3("objectColor", 0.5f, 0.5f, 0.5f);
     glm::mat4 Tx = glm::mat4(1.0f);
     glm::mat4 Rz = glm::mat4(1.0f);
     glm::mat4 TR = glm::mat4(1.0f);
@@ -876,24 +995,20 @@ void move_place() {
 
     Tx = glm::translate(Tx, glm::vec3(0.0, 0.0, 0.05));
     Rz = glm::rotate(Rz, glm::radians(0.0f), glm::vec3(0.0, 1.0, 0.0));
-    model = glm::scale(model, glm::vec3(20.0, 0.0001, 20.0));
+    model = glm::scale(model, glm::vec3(10.0, 0.0001, 10.0));
 
     TR = Tx * Rz * model;
 
-    unsigned int modelLocation = glGetUniformLocation(shaderID, "modelTransform");
-    glUniformMatrix4fv(modelLocation, 1, GL_FALSE, glm::value_ptr(TR));
-    glBindVertexArray(place_vao);
-
-    glEnable(GL_DEPTH_TEST);
-
-    glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
+    shaderID.setMat4("modelTransform", TR);
+    glBindVertexArray(VAO_Road);
+    glBindTexture(GL_TEXTURE_2D, Road_Load.texture);
+    glDrawArrays(GL_TRIANGLES, 0, Road);
 }
 
 void make_build() {
     for (int i = 0; i < 100; i++) {
         if (house.build[i] == true) {
-            unsigned int oColorLocation = glGetUniformLocation(shaderID, "objectColor");
-            glUniform3f(oColorLocation, 0.5f, 0.5f, 0.5f);
+            shaderID.setVec3("objectColor", 0.5f, 0.5f, 0.5f);
 
             glm::mat4 Tx = glm::mat4(1.0f);
             glm::mat4 Rz = glm::mat4(1.0f);
@@ -906,18 +1021,14 @@ void make_build() {
 
             TR = Tx * Rz * model;
 
-            unsigned int modelLocation = glGetUniformLocation(shaderID, "modelTransform");
-            glUniformMatrix4fv(modelLocation, 1, GL_FALSE, glm::value_ptr(TR));
+            shaderID.setMat4("modelTransform", TR);
             glBindVertexArray(VAO_house);
-
-            glEnable(GL_DEPTH_TEST);
-
+            glBindTexture(GL_TEXTURE_2D, House_Load.texture);
             glDrawArrays(GL_TRIANGLES, 0, House);
         }
 
         if (building.build[i] == true) {
-            unsigned int oColorLocation = glGetUniformLocation(shaderID, "objectColor");
-            glUniform3f(oColorLocation, 0.5f, 0.5f, 0.5f);
+            shaderID.setVec3("objectColor", 0.5f, 0.5f, 0.5f);
 
             glm::mat4 Tx = glm::mat4(1.0f);
             glm::mat4 Rz = glm::mat4(1.0f);
@@ -930,18 +1041,14 @@ void make_build() {
 
             TR = Tx * Rz * model;
 
-            unsigned int modelLocation = glGetUniformLocation(shaderID, "modelTransform");
-            glUniformMatrix4fv(modelLocation, 1, GL_FALSE, glm::value_ptr(TR));
+            shaderID.setMat4("modelTransform", TR);
             glBindVertexArray(VAO_build);
-
-            glEnable(GL_DEPTH_TEST);
-
+            glBindTexture(GL_TEXTURE_2D, Building_Load.texture);
             glDrawArrays(GL_TRIANGLES, 0, Building);
         }
 
         if (top.build[i] == true) {
-            unsigned int oColorLocation = glGetUniformLocation(shaderID, "objectColor");
-            glUniform3f(oColorLocation, 0.5f, 0.5f, 0.5f);
+            shaderID.setVec3("objectColor", 0.5f, 0.5f, 0.5f);
 
             glm::mat4 Tx = glm::mat4(1.0f);
             glm::mat4 Rz = glm::mat4(1.0f);
@@ -954,12 +1061,9 @@ void make_build() {
 
             TR = Tx * Rz * model;
 
-            unsigned int modelLocation = glGetUniformLocation(shaderID, "modelTransform");
-            glUniformMatrix4fv(modelLocation, 1, GL_FALSE, glm::value_ptr(TR));
+            shaderID.setMat4("modelTransform", TR);
             glBindVertexArray(VAO_top);
-
-            glEnable(GL_DEPTH_TEST);
-
+            glBindTexture(GL_TEXTURE_2D, Top_Load.texture);
             glDrawArrays(GL_TRIANGLES, 0, Top);
         }
     }
@@ -967,8 +1071,7 @@ void make_build() {
 
 void make_point() {
     if (build_h) {
-        unsigned int oColorLocation = glGetUniformLocation(shaderID, "objectColor");
-        glUniform3f(oColorLocation, 1.0f, 0.0f, 0.0f);
+        shaderID.setVec3("objectColor", 1.0f, 0.0f, 0.0f);
 
         glm::mat4 Tx = glm::mat4(1.0f);
         glm::mat4 Rz = glm::mat4(1.0f);
@@ -981,18 +1084,14 @@ void make_point() {
 
         TR = Tx * Rz * model;
 
-        unsigned int modelLocation = glGetUniformLocation(shaderID, "modelTransform");
-        glUniformMatrix4fv(modelLocation, 1, GL_FALSE, glm::value_ptr(TR));
+        shaderID.setMat4("modelTransform", TR);
         glBindVertexArray(VAO_house);
-
-        glEnable(GL_DEPTH_TEST);
-
+        glBindTexture(GL_TEXTURE_2D, House_Load.texture);
         glDrawArrays(GL_TRIANGLES, 0, House);
     }
 
     if (build_b) {
-        unsigned int oColorLocation = glGetUniformLocation(shaderID, "objectColor");
-        glUniform3f(oColorLocation, 1.0f, 0.0f, 0.0f);
+        shaderID.setVec3("objectColor", 1.0f, 0.0f, 0.0f);
 
         glm::mat4 Tx = glm::mat4(1.0f);
         glm::mat4 Rz = glm::mat4(1.0f);
@@ -1005,18 +1104,14 @@ void make_point() {
 
         TR = Tx * Rz * model;
 
-        unsigned int modelLocation = glGetUniformLocation(shaderID, "modelTransform");
-        glUniformMatrix4fv(modelLocation, 1, GL_FALSE, glm::value_ptr(TR));
+        shaderID.setMat4("modelTransform", TR);
         glBindVertexArray(VAO_build);
-
-        glEnable(GL_DEPTH_TEST);
-
+        glBindTexture(GL_TEXTURE_2D, Building_Load.texture);
         glDrawArrays(GL_TRIANGLES, 0, Building);
     }
 
     if (build_t) {
-        unsigned int oColorLocation = glGetUniformLocation(shaderID, "objectColor");
-        glUniform3f(oColorLocation, 1.0f, 0.0f, 0.0f);
+        shaderID.setVec3("objectColor", 1.0f, 0.0f, 0.0f);
 
         glm::mat4 Tx = glm::mat4(1.0f);
         glm::mat4 Rz = glm::mat4(1.0f);
@@ -1029,34 +1124,87 @@ void make_point() {
 
         TR = Tx * Rz * model;
 
-        unsigned int modelLocation = glGetUniformLocation(shaderID, "modelTransform");
-        glUniformMatrix4fv(modelLocation, 1, GL_FALSE, glm::value_ptr(TR));
+        shaderID.setMat4("modelTransform", TR);
         glBindVertexArray(VAO_top);
-
-        glEnable(GL_DEPTH_TEST);
-
+        glBindTexture(GL_TEXTURE_2D, Top_Load.texture);
         glDrawArrays(GL_TRIANGLES, 0, Top);
     }
+}
 
-    /*unsigned int oColorLocation = glGetUniformLocation(shaderID, "objectColor");
-    glUniform3f(oColorLocation, 1.0f, 0.0f, 0.0f);
+void Cost_place() {
 
-    glm::mat4 Tx = glm::mat4(1.0f);
-    glm::mat4 Rz = glm::mat4(1.0f);
-    glm::mat4 TR = glm::mat4(1.0f);
-    glm::mat4 model = glm::mat4(1.0f);
+    glBindVertexArray(VAO_Cube);
+    glBindTexture(GL_TEXTURE_2D, Cube_Load.texture);
 
-    Tx = glm::translate(Tx, glm::vec3(point_x, 0.0f, point_z));
-    Rz = glm::rotate(Rz, glm::radians(0.0f), glm::vec3(0.0, 1.0, 0.0));
-    model = glm::scale(model, glm::vec3(0.1, 0.1, 0.1));
+    int value[4];
+    int valueCount = 4;
 
-    TR = Rz * Tx * model;
+    int tempCost = cost;
 
-    unsigned int modelLocation = glGetUniformLocation(shaderID, "modelTransform");
-    glUniformMatrix4fv(modelLocation, 1, GL_FALSE, glm::value_ptr(TR));
-    glBindVertexArray(place_vao);
+    while (tempCost > 0) {
+        int tempValue = tempCost % 10;
+        value[--valueCount] = tempValue;
+        tempCost /= 10;
+    }
 
-    glEnable(GL_DEPTH_TEST);
+    for (int i = 0; i < 4; i++) {
+        string path = "image/" + to_string(value[i]) + ".png";
+        Cube_Load.InitTexture(path.c_str());
 
-    glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);*/
+
+        glm::mat4 CostBox = glm::mat4(1.0f);
+        CostBox = glm::translate(CostBox, glm::vec3(15.f, 1.f, 0.f));
+        CostBox = glm::translate(CostBox, glm::vec3(0.75f * i, 0.f, 0.f));
+        CostBox = glm::scale(CostBox, glm::vec3(0.1f, 0.1f, 0.1f));
+        shaderID.setMat4("modelTransform", CostBox);
+        shaderID.setVec3("objectColor", 1.f, 1.f, 1.f);
+        glDrawArrays(GL_TRIANGLES, 0, Cube);
+    }
+
+}
+
+
+void Time_place() {
+    glBindVertexArray(VAO_Cube);
+    glBindTexture(GL_TEXTURE_2D, Cube_Load.texture);
+
+    int hvalue[2];
+    int hvalueCount = 2;
+
+    int temphour = hour;
+    hvalue[0] = 0;
+    hvalue[1] = 0;
+
+    while (temphour > 0) {
+        int temphValue = temphour % 10;
+        hvalue[--hvalueCount] = temphValue;
+        temphour /= 10;
+    }
+
+    for (int i = 0; i < 3; i++) {
+        if (i < 2) {
+            string path = "image/T" + to_string(hvalue[i]) + ".png";
+            Cube_Load.InitTexture(path.c_str());
+        }
+        else if (i == 2) Cube_Load.InitTexture("image/and.png");
+
+        glm::mat4 CostBox = glm::mat4(1.0f);
+        CostBox = glm::translate(CostBox, glm::vec3(-15.f, 1.f, 0.f));
+        CostBox = glm::translate(CostBox, glm::vec3(0.75f * i, 0.f, 0.f));
+        CostBox = glm::scale(CostBox, glm::vec3(0.1f, 0.1f, 0.1f));
+        shaderID.setMat4("modelTransform", CostBox);
+        shaderID.setVec3("objectColor", 1.f, 1.f, 1.f);
+        glDrawArrays(GL_TRIANGLES, 0, Cube);
+    }
+
+    for (int i = 3; i < 5; ++i) {
+        Cube_Load.InitTexture("image/T0.png");
+        glm::mat4 CostBox = glm::mat4(1.0f);
+        CostBox = glm::translate(CostBox, glm::vec3(-15.05f, 1.f, 0.f));
+        CostBox = glm::translate(CostBox, glm::vec3(0.75f * i, 0.f, 0.f));
+        CostBox = glm::scale(CostBox, glm::vec3(0.1f, 0.1f, 0.1f));
+        shaderID.setMat4("modelTransform", CostBox);
+        shaderID.setVec3("objectColor", 1.f, 1.f, 1.f);
+        glDrawArrays(GL_TRIANGLES, 0, Cube);
+    }
 }
